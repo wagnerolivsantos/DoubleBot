@@ -26,7 +26,7 @@ const url = process.env.SITE;
       });
 
       if (connectionStatus) {
-        let rouletteSpin, color;
+        let rouletteSpin, color, number;
 
         let $ = cheerio.load(
           await page.evaluate(() => {
@@ -45,7 +45,10 @@ const url = process.env.SITE;
             else if ($(rouletteSpin[0]).hasClass("red")) color = "red";
             else color = "white";
 
-            consoleMessage(`Color: ${color}`);
+            if (color == "white") number = "0";
+            else number = $(rouletteSpin[0]).text();
+
+            consoleMessage(`[ Color: ${color}, Number: ${number} ]`);
           } else {
             consoleMessage("❌  No rounds captured!!!");
             page.reload();
