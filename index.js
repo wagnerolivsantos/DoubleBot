@@ -26,18 +26,40 @@ const url = process.env.SITE;
       });
 
       if (connectionStatus) {
+        let rouletteSpin, color;
+
         let $ = cheerio.load(
           await page.evaluate(() => {
             return document.documentElement.innerHTML;
           })
         );
+
+        if (
+          $("#roulette").hasClass("complete") ||
+          $("#roulette").hasClass("waiting")
+        ) {
+          rouletteSpin = $(".sm-box");
+
+          if (rouletteSpin.length > 0) {
+            if ($(rouletteSpin[0]).hasClass("black")) color = "black";
+            else if ($(rouletteSpin[0]).hasClass("red")) color = "red";
+            else color = "white";
+
+            consoleMessage(`Color: ${color}`);
+          } else {
+            consoleMessage("❌  No rounds captured!!!");
+            page.reload();
+          }
+        } else {
+          counter = 0;
+        }
       } else {
         counter++;
         page.waitForTimeout(5000);
         page.reload();
 
         if (counter == process.env.MAXIMUM_RECONNECTION) {
-          consoleMessage("OFFLINE");
+          consoleMessage("💀  OFFLINE");
           clearInterval(robot);
           await browser.close();
         }
@@ -49,5 +71,5 @@ const url = process.env.SITE;
 })();
 
 function consoleMessage(message) {
-  console.log(message);
+  console.log(`❱ ${message}`);
 }
