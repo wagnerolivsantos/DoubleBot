@@ -13,7 +13,8 @@ const url = process.env.SITE;
     args: ["--start-maximized"],
   });
 
-  let counter = 0;
+  let counter = 0,
+    lastRouletteCode = "";
 
   try {
     const page = await browser.newPage();
@@ -52,6 +53,7 @@ const url = process.env.SITE;
               await page.click(
                 `.${rouletteSpin[0].attribs.class.replace(" ", ".")}`
               );
+
               await page.waitForSelector(".modal-portal .header h2");
 
               rouletteHeader = await page.$eval(
@@ -63,11 +65,14 @@ const url = process.env.SITE;
               date = rouletteHeader.slice(22, 32);
               hour = rouletteHeader.slice(33, 41);
 
-              await page.goBack();
+              if (!isExistsCode(code, lastRouletteCode)) {
+                lastRouletteCode = code;
+                consoleMessage(
+                  `[ Code: ${code}, Date: ${date}, Hour: ${hour}, Color: ${color}, Number: ${number} ]`
+                );
+              }
 
-              consoleMessage(
-                `[ Code: ${code}, Date: ${date}, Hour: ${hour}, Color: ${color}, Number: ${number} ]`
-              );
+              await page.goBack();
             } catch {
               page.reload();
               page.goBack();
@@ -98,4 +103,8 @@ const url = process.env.SITE;
 
 function consoleMessage(message) {
   console.log(`❱ ${message}`);
+}
+
+function isExistsCode(recentRouletteCode, lastRouletteCode) {
+  return recentRouletteCode == lastRouletteCode ? true : false;
 }
