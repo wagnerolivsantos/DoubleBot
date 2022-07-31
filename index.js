@@ -3,12 +3,9 @@
 require("dotenv").config();
 
 const puppeteer = require("puppeteer");
+const cheerio = require("cheerio");
 
 const url = process.env.SITE;
-
-function consoleMessage(message) {
-  console.log(message);
-}
 
 (async () => {
   const browser = await puppeteer.launch({
@@ -29,14 +26,18 @@ function consoleMessage(message) {
       });
 
       if (connectionStatus) {
-        consoleMessage("Online");
+        let $ = cheerio.load(
+          await page.evaluate(() => {
+            return document.documentElement.innerHTML;
+          })
+        );
       } else {
         counter++;
-
+        page.waitForTimeout(5000);
         page.reload();
 
         if (counter == process.env.MAXIMUM_RECONNECTION) {
-          consoleMessage("Error: Offline");
+          consoleMessage("OFFLINE");
           clearInterval(robot);
           await browser.close();
         }
@@ -46,3 +47,7 @@ function consoleMessage(message) {
     await browser.close();
   }
 })();
+
+function consoleMessage(message) {
+  console.log(message);
+}
