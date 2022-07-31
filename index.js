@@ -26,7 +26,7 @@ const url = process.env.SITE;
       });
 
       if (connectionStatus) {
-        let rouletteSpin, color, number;
+        let rouletteSpin, rouletteHeader, code, date, hour, color, number;
 
         let $ = cheerio.load(
           await page.evaluate(() => {
@@ -48,7 +48,30 @@ const url = process.env.SITE;
             if (color == "white") number = "0";
             else number = $(rouletteSpin[0]).text();
 
-            consoleMessage(`[ Color: ${color}, Number: ${number} ]`);
+            try {
+              await page.click(
+                `.${rouletteSpin[0].attribs.class.replace(" ", ".")}`
+              );
+              await page.waitForSelector(".modal-portal .header h2");
+
+              rouletteHeader = await page.$eval(
+                ".modal-portal .header h2",
+                (element) => element.innerText
+              );
+
+              code = rouletteHeader.slice(1, 11);
+              date = rouletteHeader.slice(22, 32);
+              hour = rouletteHeader.slice(33, 41);
+
+              await page.goBack();
+
+              consoleMessage(
+                `[ Code: ${code}, Date: ${date}, Hour: ${hour}, Color: ${color}, Number: ${number} ]`
+              );
+            } catch {
+              page.reload();
+              page.goBack();
+            }
           } else {
             consoleMessage("❌  No rounds captured!!!");
             page.reload();
