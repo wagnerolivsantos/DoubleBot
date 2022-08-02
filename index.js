@@ -1,20 +1,24 @@
 "use strict";
 
 require("dotenv").config();
-
 const puppeteer = require("puppeteer");
 const cheerio = require("cheerio");
 
 const url = process.env.SITE;
 
 (async () => {
+  let $,
+    connectionStatus,
+    roulette,
+    rouletteHeader,
+    round,
+    counter = 0,
+    lastRouletteCode = "";
+
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
     args: ["--start-maximized"],
   });
-
-  let counter = 0,
-    lastRouletteCode = "";
 
   try {
     const page = await browser.newPage();
@@ -22,72 +26,84 @@ const url = process.env.SITE;
     await page.goto(url);
 
     const robot = setInterval(async () => {
-      let connectionStatus = await page.evaluate(() => {
+      connectionStatus = await page.evaluate(() => {
         return navigator.onLine;
       });
 
       if (connectionStatus) {
-        let rouletteSpin, rouletteHeader, code, date, hour, color, number;
+        if (counter > 0) page.reload();
 
-        let $ = cheerio.load(
+        $ = cheerio.load(
           await page.evaluate(() => {
             return document.documentElement.innerHTML;
           })
         );
 
-        if (
-          $("#roulette").hasClass("complete") ||
-          $("#roulette").hasClass("waiting")
-        ) {
-          rouletteSpin = $(".sm-box");
+        if (rouletteStatus($)) {
+          roulette = $(".sm-box");
 
-          if (rouletteSpin.length > 0) {
-            if ($(rouletteSpin[0]).hasClass("black")) color = "black";
-            else if ($(rouletteSpin[0]).hasClass("red")) color = "red";
-            else color = "white";
-
-            if (color == "white") number = "0";
-            else number = $(rouletteSpin[0]).text();
-
+          if (roulette.length > 0) {
             try {
               await page.click(
-                `.${rouletteSpin[0].attribs.class.replace(" ", ".")}`
+                `.${roulette[0].attribs.class.replace(" ", ".")}`
               );
 
-              await page.waitForSelector(".modal-portal .header h2");
+              await page.waitForSelector(".modal-portal .header h1");
 
-              rouletteHeader = await page.$eval(
-                ".modal-portal .header h2",
-                (element) => element.innerText
-              );
+              rouletteHeader = await page
+                .$eval(
+                  ".modal-portal .header h1",
+                  (element) => element.innerText
+                )
+                .then((element) => {
+                  return element.split(" ")[0];
+                });
 
-              code = rouletteHeader.slice(1, 11);
-              date = rouletteHeader.slice(22, 32);
-              hour = rouletteHeader.slice(33, 41);
+              if (rouletteHeader == "Histórico") await page.goBack();
 
-              if (!isExistsCode(code, lastRouletteCode)) {
-                lastRouletteCode = code;
-                consoleMessage(
-                  `[ Code: ${code}, Date: ${date}, Hour: ${hour}, Color: ${color}, Number: ${number} ]`
-                );
+              if (rouletteHeader == "Rodada") {
+                await page.waitForSelector(".modal-portal .header h2");
+
+                round = await page
+                  .$eval(
+                    ".modal-portal .header h2",
+                    (element) => element.innerText
+                  )
+                  .then((element) => {
+                    return [
+                      element.split(" ")[0].replace("#", ""),
+                      element.split(" ")[3],
+                      `${element.split(" ")[4]} ${element.split(" ")[5]}`,
+                      settingColor($, roulette[0]),
+                      settingNumber(
+                        $,
+                        roulette[0],
+                        settingColor($, roulette[0])
+                      ),
+                    ];
+                  });
+
+                if (!rouletteCodeExists(round[0], lastRouletteCode)) {
+                  lastRouletteCode = round[0];
+
+                  consoleMessage(
+                    `[ ${round[0]}, ${round[1]}, ${round[2]},${round[3]}  ${round[4]} ]`
+                  );
+                }
+
+                await page.goBack();
               }
-
-              await page.goBack();
             } catch {
-              page.reload();
-              page.goBack();
+              await page.reload();
             }
           } else {
             consoleMessage("❌  No rounds captured!!!");
-            page.reload();
+            await page.reload();
           }
-        } else {
-          counter = 0;
-        }
+        } else counter = 0;
       } else {
         counter++;
-        page.waitForTimeout(5000);
-        page.reload();
+        await page.reload();
 
         if (counter == process.env.MAXIMUM_RECONNECTION) {
           consoleMessage("💀  OFFLINE");
@@ -95,9 +111,9 @@ const url = process.env.SITE;
           await browser.close();
         }
       }
-    }, 5000);
+    }, process.env.ROBOT_TIME);
   } catch {
-    await browser.close();
+    browser.close();
   }
 })();
 
@@ -105,6 +121,23 @@ function consoleMessage(message) {
   console.log(`❱ ${message}`);
 }
 
-function isExistsCode(recentRouletteCode, lastRouletteCode) {
+function rouletteCodeExists(recentRouletteCode, lastRouletteCode) {
   return recentRouletteCode == lastRouletteCode ? true : false;
+}
+
+function rouletteStatus($) {
+  if ($("#roulette").hasClass("complete") || $("#roulette").hasClass("waiting"))
+    return true;
+  return false;
+}
+
+function settingColor($, rouletteSpin) {
+  if ($(rouletteSpin).hasClass("black")) return "⚫";
+  else if ($(rouletteSpin).hasClass("red")) return "🔴";
+  return "⚪";
+}
+
+function settingNumber($, rouletteSpin, color) {
+  if (color == "⚪") return 0;
+  return parseInt($(rouletteSpin).text());
 }
